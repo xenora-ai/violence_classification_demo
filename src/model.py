@@ -6,17 +6,16 @@ import torchvision.models as models
 class CNNLSTM(nn.Module):
     def __init__(
         self,
-        hidden_dim=256,
+        hidden_dim=128,
         num_layers=1,
         bidirectional=False,
         freeze_cnn=True,
-        unfreeze_last_k=0,
-        temporal_pooling=False
+        unfreeze_last_k=3,
+        temporal_pooling=True
     ):
         super().__init__()
 
-        # Завантажуємо MobileNetV2 як backbone
-        backbone = models.mobilenet_v2(weights=None)  # weights=None, бо ми завантажимо свої
+        backbone = models.mobilenet_v2(weights=None)
         self.cnn = backbone.features
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
 
@@ -25,7 +24,8 @@ class CNNLSTM(nn.Module):
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
-            bidirectional=bidirectional
+            bidirectional=bidirectional,
+            dropout=0.3 if num_layers > 1 else 0.0
         )
 
         self.temporal_pooling = temporal_pooling
@@ -37,14 +37,12 @@ class CNNLSTM(nn.Module):
         )
 
     def forward(self, x):
-        # x shape: [B, T, C, H, W]
         B, T, C, H, W = x.shape
 
-        # Згортаємо Batch та Time для CNN
         x = x.view(B * T, C, H, W)
         x = self.cnn(x)
         x = self.pool(x)
-        x = x.view(B, T, -1)  # Повертаємо до [B, T, 1280]
+        x = x.view(B, T, -1)
 
         lstm_out, (h_n, _) = self.lstm(x)
 
